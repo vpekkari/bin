@@ -1,0 +1,288 @@
+#!/bin/bash
+
+wblist="\
+2500|2644|1.056\n\
+2550|2676|1.077\n\
+2650|2745|1.107\n\
+2700|2790|1.109\n\
+2800|2892|1.116\n\
+2850|2933|1.120\n\
+2950|3039|1.126\n\
+3000|3083|1.131\n\
+3100|3179|1.139\n\
+3200|3279|1.146\n\
+3300|3373|1.155\n\
+3400|3468|1.162\n\
+3600|3661|1.175\n\
+3700|3741|1.177\n\
+3800|3838|1.180\n\
+4000|4014|1.185\n\
+4200|4184|1.184\n\
+4300|4267|1.186\n\
+4500|4437|1.181\n\
+4800|4680|1.147\n\
+5000|4824|1.125\n\
+5300|5067|1.110\n\
+5600|5288|1.116\n\
+5900|5504|1.121\n\
+6300|5792|1.106\n\
+6700|6112|1.088\n\
+7100|6376|1.072\n\
+7700|6799|1.048\n\
+8300|7318|1.028\n\
+9300|7993|1.010\n\
+10000|8780|0.992\
+"
+
+
+denoise=0
+file=$(echo "$1" | awk -F'/' '{print $NF}')
+film=$(echo "$file" | grep -o "ds." | grep -o ".$" | tr "[:upper:]" "[:lower:]")
+basename=$(echo "$file" | cut -f1 -d'.')
+ext=$(echo "$1" | cut -d'.' -f2)
+exp=0.7
+sat=0.83
+bb=auto
+lc=0.2
+imgfile=$1
+gamma=0.50
+
+if [ "$2" != "" ]; then
+  ecorr=$2
+else
+  ecorr=0
+fi
+
+echo "Processing $imgfile..."
+
+echo "Extracting test image..."
+ufraw-batch --conf=$HOME/.ufrawrc-batch --auto-crop --wb=camera --black-point=auto --exif --out-depth=8 --out-type=jpg --shrink=64x48 --interpolation=bilinear --overwrite --create-id=also --output=/tmp/${basename}_prw.jpg "$imgfile"
+
+cameratemp=`cat "/tmp/${basename}_prw.ufraw" | grep "<Temperature>" | cut -f2 -d">" | cut -f1 -d"<"`
+model=`cat "/tmp/${basename}_prw.ufraw" | grep "<Model>" | cut -f2 -d">" | cut -f1 -d"<" | tr "[:upper:]" "[:lower:]"`
+
+cacorr=0
+exiftool "/tmp/${basename}_prw.jpg" | grep -q "Manual Lens"
+if [ $? -eq 0 ]; then
+  exiftool "/tmp/${basename}_prw.jpg" | grep -q "24.0 mm (35 mm equivalent: 36.0 mm)"
+  if [ $? -eq 0 ]; then
+    cacorr=1
+  fi
+fi
+
+ufraw-batch --embedded-image --overwrite --output=/tmp/${basename}_emb.jpg "$imgfile"
+ufraw-batch --conf=$HOME/.ufrawrc-$model --auto-crop --black-point=auto --noexif --overwrite --wavelet-denoising-threshold=$denoise --restore=clip --wb=camera --interpolation=ahd --create-id=no --out-type=jpg --out-depth=8 --output=/tmp/${basename}_mean.jpg "$imgfile" 2>/dev/null
+emin=`identify -format '%[min]' /tmp/${basename}_emb.jpg | cut -f1 -d'.'`
+emean=`identify -format '%[mean]' /tmp/${basename}_emb.jpg | cut -f1 -d'.'`
+emax=`identify -format '%[max]' /tmp/${basename}_emb.jpg | cut -f1 -d'.'`
+#max=`identify -format '%[max]' /tmp/${basename}_mean.jpg | cut -f1 -d'.'`#
+emax=$(echo "$emax/2^($ecorr/2)" | concalc 2>/dev/null )
+max=65535
+
+mean=`echo "($emean - $emin) / ($emax - $emin) * $max" | bc -l | cut -f1 -d'.'`
+newmean=0
+
+temp="4936"
+green="1.064"
+
+if [ "$film" == "c" ]; then	# Neutral
+if [ $cameratemp -lt 4200 ]; then
+  if [ $cameratemp -gt 3000 ]; then
+    temp=4000
+    green=1.02
+  else
+    autotemp=$cameratemp
+    for line in `echo -e $wblist`; do
+      if [ $autotemp -lt `echo $line | cut -f1 -d"|"` ]; then
+        temp=`echo -n "$line" | cut -f2 -d"|"`
+        green=`echo -n "$line" | cut -f3 -d"|"`
+        break;
+      fi
+    done
+  fi
+fi
+if [ $cameratemp -gt 5500 ]; then
+  if [ $cameratemp -lt 6000 ]; then
+     # Cloudy
+     temp="5574"
+     green="1.119"
+  else
+     # Shade  
+     temp="7059"
+     green="1.039"
+  fi
+fi
+fi
+
+if [ "$film" == "f" ]; then	# Fuji
+  temp="4700"
+  green="1.1"
+fi
+if [ "$film" == "a" ]; then	# Agfa
+  temp="5200"
+  green="0.97"
+fi
+if [ "$film" == "k" ]; then	# Kodak
+  temp="4000"
+  green="1.05"
+  sat=1.0
+fi
+
+
+# --> Vanhaa koodia
+#if [ $cameratemp -gt 5500 ]; then
+#  autotemp=$cameratemp
+#  for line in `echo -e $wblist`; do
+#    if [ $autotemp -lt `echo $line | cut -f1 -d"|"` ]; then
+#      temp=`echo -n "$line" | cut -f2 -d"|"`
+#      green=`echo -n "$line" | cut -f3 -d"|"`
+#      break;
+#    fi
+#  done
+#fi
+# <-- Vanhaa koodia
+
+#temp=""
+#green=""
+iso=$(exiftool "/tmp/${basename}_prw.jpg" | grep "ISO Setting" | cut -d":" -f2 | awk -F' ' '{print $NF}')
+#realiso=$(echo "$iso*2^$ecorr"| bc -l|cut -f1 -d'.')
+realiso=$(echo "$iso*2^$ecorr"| concalc 2>/dev/null | cut -f1 -d'.')
+lcorr=$(echo "$realiso/200" | concalc 2>/dev/null)
+if [ `echo "$lcorr" | cut -f1 -d'.'` -ge 8 ]; then
+  lcorr=8
+fi
+
+if [ "$model" = "d200" ]; then
+  exp=0.7
+fi
+if [ "$model" = "d7000" ]; then
+  exp=1.4
+  realiso=`echo "$realiso/2" | bc -l | cut -f1 -d'.'`
+fi
+if [ "$model" = "d700" ]; then
+  exp=1.4
+  realiso=`echo "$realiso/4" | bc -l | cut -f1 -d'.'`
+fi
+
+exp=$(echo "$exp+$ecorr" |concalc 2>/dev/null)
+blur=$(echo "4+$realiso/200" | bc -l | cut -f1 -d'.')
+denoise=$(echo "$realiso/10" | bc -l | cut -f1 -d'.')
+denoise2=$(echo "$denoise*3" | bc -l )
+hotpixel=$(echo "$iso/10" | concalc 2>/dev/null)
+edges=$(echo "1+$realiso/200" | bc -l | cut -f1 -d'.')
+
+#bgamma=$(echo "16000/$iso" | bc -l | cut -f1 -d'.')
+bgamma=0
+for i in 3200 1600 800 400 200 100; do
+  bgamma=$(echo "$bgamma+1" | bc -l)
+  if [ $i -le $realiso ]; then
+    bgamma=$(echo "0+$bgamma*5" | bc -l)
+    break
+  fi
+done
+
+cgamma=$(echo "$bgamma/3" | bc -l )	# 5 -> 3
+dcontrast=$(echo "$bgamma/10" | bc -l | cut -f1 -d'.')
+dcstr=" -contrast -contrast "
+for i in `seq 1 1 $dcontrast`; do
+  dcstr=`echo "$dcstr -contrast "`
+done
+
+echo "Model: $model"
+echo "Iso: $iso"
+echo "Real iso: $realiso"
+echo "Mean: $mean"
+echo "Gamma (luma denoise): $bgamma"
+echo "Gamma (chroma denoise): $cgamma"
+echo "Denoising threshold: $denoise"
+echo "Denoising threshold 2: $denoise2"
+echo "Denoising contrast: $dcontrast"
+echo "Hotpixel sensitivity: $hotpixel"
+echo "Color temperature: $temp, $green"
+echo "Edges threshold: $edges"
+echo "Black level correction: $lcorr"
+
+if [ $cacorr -eq 1 ]; then
+  if [ ! -f /tmp/${basename}.ca ]; then
+    echo "Creating temporary image for CA correction... "
+    ufraw-batch --conf=$HOME/.ufrawrc-$model --auto-crop --exif --overwrite --wavelet-denoising-threshold=$denoise --restore=clip --wb=auto --black-point=auto --interpolation=ahd --exposure=auto --create-id=no --out-type=tif --out-depth=16 --output=/tmp/${basename}_tca.tif "$imgfile" 2>/dev/null
+
+    echo "Searching for chromatic abbreviation..."
+    tca_correct -o cv /tmp/${basename}_tca.tif 2>/dev/null | tail -1 1>/tmp/${basename}.ca
+  fi
+  PARAM=`cat /tmp/${basename}.ca`
+fi
+
+if [ "${temp}${green}" != "" ]; then
+  ufraw-batch --conf=$HOME/.ufrawrc-$model --auto-crop --temperature=$temp --green=$green --black-point=$bb --interpolation=ahd --exposure=$exp --saturation=$sat --restore=hsv --clip=film --wavelet-denoising-threshold=$denoise --hotpixel-sensitivity=$hotpixel --color-smoothing --out-type=tiff --out-depth=16 --noexif --overwrite --create-id=no --output=/tmp/${basename}.tif "$imgfile"
+  ufraw-batch --conf=$HOME/.ufrawrc-$model --auto-crop --temperature=$temp --green=$green --black-point=$bb --interpolation=ahd --exposure=$exp --saturation=$sat --restore=hsv --clip=film --wavelet-denoising-threshold=$denoise2 --hotpixel-sensitivity=$hotpixel --color-smoothing --out-type=tiff --out-depth=16 --noexif --overwrite --create-id=no --output=/tmp/${basename}_dn.tif "$imgfile"
+else
+  ufraw-batch --conf=$HOME/.ufrawrc-$model --auto-crop --wb=camera --black-point=$bb --interpolation=ahd --exposure=$exp --saturation=$sat --restore=hsv --clip=film --wavelet-denoising-threshold=$denoise --hotpixel-sensitivity=$hotpixel --color-smoothing --out-type=tiff --out-depth=16 --noexif --overwrite --create-id=no --output=/tmp/${basename}.tif "$imgfile"
+  ufraw-batch --conf=$HOME/.ufrawrc-$model --auto-crop --wb=camera --black-point=$bb --interpolation=ahd --exposure=$exp --saturation=$sat --restore=hsv --clip=film --wavelet-denoising-threshold=$denoise2 --hotpixel-sensitivity=$hotpixel --color-smoothing --out-type=tiff --out-depth=16 --noexif --overwrite --create-id=no --output=/tmp/${basename}_dn.tif "$imgfile"
+fi
+
+convert /tmp/${basename}.tif -colorspace HSL -separate /tmp/${basename}.png
+convert /tmp/${basename}_dn.tif -colorspace HSL -separate /tmp/${basename}_dn.png
+# YCbCr
+
+# ------>
+echo "Blurring luma..."
+convert "/tmp/${basename}-2.png" +level 2% -selective-blur 12x7+${blur}% "/tmp/${basename}-2blur.png"
+convert "/tmp/${basename}-2.png" +level 2% -gamma $bgamma "/tmp/${basename}-2gamma20.png"
+convert "/tmp/${basename}-2blur.png" -gamma $bgamma -negate "/tmp/${basename}-2blurgamma20.png"
+
+echo "Chroma..."
+convert "/tmp/${basename}-2blur.png" -contrast -contrast -gamma $cgamma "/tmp/${basename}-2blurgamma2.png"
+convert "/tmp/${basename}_dn-1.png" "/tmp/${basename}-2blurgamma2.png" -compose multiply -composite "/tmp/${basename}-1b.png"
+
+echo "Compositing luma..."
+composite "/tmp/${basename}-2gamma20.png" "/tmp/${basename}-2blurgamma20.png" -blend 50% "/tmp/${basename}-2mask.png"
+convert "/tmp/${basename}-2mask.png" $dcstr -negate "/tmp/${basename}-2mask-neg.png"
+convert "/tmp/${basename}-2.png" "/tmp/${basename}-2mask-neg.png" -compose hard-light -composite "/tmp/${basename}-2b0.png"
+# <------
+
+echo "Denoising..."
+denoise -m mean -f 1.1 -n $(echo "$realiso/800" | concalc 2>/dev/null) /tmp/${basename}-2b0.png /tmp/${basename}-2b.png
+
+convert /tmp/${basename}_dn-0.png /tmp/${basename}-1b.png /tmp/${basename}-2b.png -set colorspace HSL -combine -colorspace RGB -level ${lcorr}% /tmp/${basename}.tif
+
+if [ $cacorr -eq 1 ]; then
+  echo "Correcting CA..."
+  fulla $PARAM /tmp/${basename}.tif 2>/dev/null; rm /tmp/${basename}.tif
+else
+  mv /tmp/${basename}.tif /tmp/${basename}_corr.tif
+fi
+
+rm -f "/tmp/${basename}*.png"   
+sharpen=$(echo "$realiso/8000"|concalc 2>/dev/null)
+echo "Converting tif -> jpg ... $sharpen"
+
+while [ $newmean -lt $mean ]; do
+  gamma=`echo "$gamma+0.05" | concalc 2>/dev/null`
+  echo -e "Gamma: $gamma\nSource mean: $mean\nTarget mean: $newmean\n"
+  convert -auto-level -level 1%,97% -gamma $gamma -quality 85 "/tmp/${basename}_corr.tif" "/tmp/${basename}_gamma.jpg"
+  newmean=`identify -format '%[mean]' "/tmp/${basename}_gamma.jpg" | cut -f1 -d'.'`
+done
+while [ $newmean -gt $mean ]; do
+  gamma=`echo "$gamma-0.01" | concalc 2>/dev/null`
+  echo -e "Gamma: $gamma\nSource mean: $mean\nTarget mean: $newmean\n"
+  convert -auto-level -level 1%,97% -gamma $gamma -quality 85 "/tmp/${basename}_corr.tif" "/tmp/${basename}_gamma.jpg"
+  newmean=`identify -format '%[mean]' "/tmp/${basename}_gamma.jpg" | cut -f1 -d'.'`
+done
+
+#convert -auto-level -level 3%,100% -gamma $gamma -unsharp 0x40.0+$lc+0.0 -unsharp 0.5x0.5+1.5+$sharpen -quality 97 "/tmp/${basename}_corr.tif" "/tmp/${basename}.jpg"; rm -f "/tmp/${basename}_corr.tif"   
+convert -auto-level -level 1%,100% -gamma $gamma -unsharp 0x40.0+$lc+0.0 -unsharp 0x1.4+0.4+0 "/tmp/${basename}_corr.tif" "/tmp/${basename}.tif"
+sharpedge -k gaussian -e 0 -w 1.0 -b 2 -t $edges -f 12 "/tmp/${basename}.tif" "/tmp/${basename}_sh.tif"
+convert "/tmp/${basename}_sh.tif" -quality 97 "/tmp/${basename}.jpg"
+
+echo "Copying exif-data..."
+exiftool -tagsFromFile "/tmp/${basename}_prw.jpg" "/tmp/${basename}.jpg"; rm -f "/tmp/${basename}_prw.jpg"
+
+cp "/tmp/${basename}.jpg" .
+
+# Muutos
+#rm -f "/tmp/${basename}.jpg"
+rm -f /tmp/${basename}*.png
+rm -f /tmp/${basename}*.tif
+rm -f /tmp/${basename}*.jpg
+

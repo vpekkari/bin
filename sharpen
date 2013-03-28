@@ -1,0 +1,44 @@
+#!/bin/bash
+
+if [ "$1" == "" ]; then
+  exit 1
+fi
+
+if [ "$2" == "" ]; then
+  factor=100
+else
+  factor=$2
+fi
+
+ifile=`basename $1`
+ipath=`echo $1 | sed "s/${ifile}$//g"`
+if [ "$ipath" == "" ]; then
+  ipath="./"
+fi
+ibase=`echo $ifile | cut -f1 -d'.'`
+iext=`echo $ifile | cut -f2 -d'.'`
+
+sharpen=`echo "$factor/5000"|bc -l`
+blur=`echo "4+$factor/200"|bc -l|cut -f1 -d'.'`
+amount=`echo "0.75+35/$factor"|bc -l`
+
+echo "Sharpen: $sharpen"
+echo "Blur: $blur"
+echo "Amount: $amount"
+
+mkdir -p /tmp/sharpen
+
+convert -set colorspace RGB "${ipath}${ifile}" -colorspace HSB -separate /tmp/sharpen/${ibase}.png
+convert -set colorspace RGB "/tmp/sharpen/${ibase}-2.png" -unsharp 0x1.5+0.5+0 -unsharp 0x1+1+${sharpen} "/tmp/sharpen/${ibase}-2x.png"
+if [ "$BLURIMG" == "" ]; then
+  convert -set colorspace RGB "/tmp/sharpen/${ibase}-2.png" +level 2% -selective-blur 12x7+${blur}% "/tmp/sharpen/${ibase}-2b.png"
+  BLURIMG="/tmp/sharpen/${ibase}-2b.png"
+fi
+
+convert -set colorspace RGB "$BLURIMG" -normalize -negate -morphology Edge Diamond -normalize -blur 2x2+0 -normalize "/tmp/sharpen/${ibase}-2e0.png"
+convert -set colorspace RGB "/tmp/sharpen/${ibase}-2e0.png" -linear-stretch 40%x1% "/tmp/sharpen/${ibase}-2e.png"
+convert -set colorspace RGB "/tmp/sharpen/${ibase}-2x.png" -unsharp 0x2+${amount}+0 "/tmp/sharpen/${ibase}-2s0.png"
+composite "/tmp/sharpen/${ibase}-2s0.png" "/tmp/sharpen/${ibase}-2x.png" "/tmp/sharpen/${ibase}-2e.png" "/tmp/sharpen/${ibase}-2s.png"
+
+convert -set colorspace RGB /tmp/sharpen/${ibase}-0.png /tmp/sharpen/${ibase}-1.png /tmp/sharpen/${ibase}-2s.png -set colorspace HSB -combine -colorspace RGB "${ipath}${ibase}_sh.${iext}"
+rm -f /tmp/sharpen/${ibase}*
