@@ -221,30 +221,32 @@ else
   ufraw-batch --conf=$HOME/.ufrawrc-$model --auto-crop --wb=camera --black-point=$bb --interpolation=ahd --exposure=$exp --saturation=$sat --restore=hsv --clip=film --wavelet-denoising-threshold=$denoise2 --hotpixel-sensitivity=$hotpixel --color-smoothing --out-type=tiff --out-depth=16 --noexif --overwrite --create-id=no --output=/tmp/${basename}_dn.tif "$imgfile"
 fi
 
-convert /tmp/${basename}.tif -colorspace HSL -separate /tmp/${basename}.png
-convert /tmp/${basename}_dn.tif -colorspace HSL -separate /tmp/${basename}_dn.png
+convert -set colorspace RGB /tmp/${basename}.tif -colorspace HSL -separate /tmp/${basename}.png
+convert -set colorspace RGB /tmp/${basename}_dn.tif -colorspace HSL -separate /tmp/${basename}_dn.png
 # YCbCr
 
 # ------>
 echo "Blurring luma..."
-convert "/tmp/${basename}-2.png" +level 2% -selective-blur 12x7+${blur}% "/tmp/${basename}-2blur.png"
-convert "/tmp/${basename}-2.png" +level 2% -gamma $bgamma "/tmp/${basename}-2gamma20.png"
-convert "/tmp/${basename}-2blur.png" -gamma $bgamma -negate "/tmp/${basename}-2blurgamma20.png"
+convert -set colorspace RGB "/tmp/${basename}-2.png" +level 2% -selective-blur 12x7+${blur}% "/tmp/${basename}-2blur.png"
+convert -set colorspace RGB "/tmp/${basename}-2.png" +level 2% -gamma $bgamma "/tmp/${basename}-2gamma20.png"
+convert -set colorspace RGB "/tmp/${basename}-2blur.png" -gamma $bgamma -negate "/tmp/${basename}-2blurgamma20.png"
 
 echo "Chroma..."
-convert "/tmp/${basename}-2blur.png" -contrast -contrast -gamma $cgamma "/tmp/${basename}-2blurgamma2.png"
-convert "/tmp/${basename}_dn-1.png" "/tmp/${basename}-2blurgamma2.png" -compose multiply -composite "/tmp/${basename}-1b.png"
+convert -set colorspace RGB "/tmp/${basename}-2blur.png" -contrast -contrast -gamma $cgamma "/tmp/${basename}-2blurgamma2.png"
+convert -set colorspace RGB "/tmp/${basename}_dn-1.png" "/tmp/${basename}-2blurgamma2.png" -compose multiply -composite "/tmp/${basename}-1b.png"
 
 echo "Compositing luma..."
 composite "/tmp/${basename}-2gamma20.png" "/tmp/${basename}-2blurgamma20.png" -blend 50% "/tmp/${basename}-2mask.png"
-convert "/tmp/${basename}-2mask.png" $dcstr -negate "/tmp/${basename}-2mask-neg.png"
-convert "/tmp/${basename}-2.png" "/tmp/${basename}-2mask-neg.png" -compose hard-light -composite "/tmp/${basename}-2b0.png"
+convert -set colorspace RGB "/tmp/${basename}-2mask.png" $dcstr -negate "/tmp/${basename}-2mask-neg.png"
+convert -set colorspace RGB "/tmp/${basename}-2.png" "/tmp/${basename}-2mask-neg.png" -compose hard-light -composite "/tmp/${basename}-2b0.png"
 # <------
 
 echo "Denoising..."
-denoise -m mean -f 1.1 -n $(echo "$realiso/800" | concalc 2>/dev/null) /tmp/${basename}-2b0.png /tmp/${basename}-2b.png
+isonoise -r 1 -t 8 /tmp/${basename}-2b0.png /tmp/${basename}-2b1.png
+denoise -m mean -f 1.1 -n $(echo "$realiso/800" | concalc 2>/dev/null) /tmp/${basename}-2b1.png /tmp/${basename}-2b.png
+#denoise -m median -f 3 -n $(echo "$realiso/100" | concalc 2>/dev/null) /tmp/${basename}-2b0.png /tmp/${basename}-2b.png
 
-convert /tmp/${basename}_dn-0.png /tmp/${basename}-1b.png /tmp/${basename}-2b.png -set colorspace HSL -combine -colorspace RGB -level ${lcorr}% /tmp/${basename}.tif
+convert -set colorspace RGB /tmp/${basename}_dn-0.png /tmp/${basename}-1b.png /tmp/${basename}-2b.png -set colorspace HSL -combine -colorspace RGB -level ${lcorr}% /tmp/${basename}.tif
 
 if [ $cacorr -eq 1 ]; then
   echo "Correcting CA..."
@@ -260,20 +262,23 @@ echo "Converting tif -> jpg ... $sharpen"
 while [ $newmean -lt $mean ]; do
   gamma=`echo "$gamma+0.05" | concalc 2>/dev/null`
   echo -e "Gamma: $gamma\nSource mean: $mean\nTarget mean: $newmean\n"
-  convert -auto-level -level 1%,97% -gamma $gamma -quality 85 "/tmp/${basename}_corr.tif" "/tmp/${basename}_gamma.jpg"
+  convert -set colorspace RGB -auto-level -level 1%,97% -gamma $gamma -quality 85 "/tmp/${basename}_corr.tif" "/tmp/${basename}_gamma.jpg"
   newmean=`identify -format '%[mean]' "/tmp/${basename}_gamma.jpg" | cut -f1 -d'.'`
 done
 while [ $newmean -gt $mean ]; do
   gamma=`echo "$gamma-0.01" | concalc 2>/dev/null`
   echo -e "Gamma: $gamma\nSource mean: $mean\nTarget mean: $newmean\n"
-  convert -auto-level -level 1%,97% -gamma $gamma -quality 85 "/tmp/${basename}_corr.tif" "/tmp/${basename}_gamma.jpg"
+  convert -set colorspace RGB -auto-level -level 1%,97% -gamma $gamma -quality 85 "/tmp/${basename}_corr.tif" "/tmp/${basename}_gamma.jpg"
   newmean=`identify -format '%[mean]' "/tmp/${basename}_gamma.jpg" | cut -f1 -d'.'`
 done
 
 #convert -auto-level -level 3%,100% -gamma $gamma -unsharp 0x40.0+$lc+0.0 -unsharp 0.5x0.5+1.5+$sharpen -quality 97 "/tmp/${basename}_corr.tif" "/tmp/${basename}.jpg"; rm -f "/tmp/${basename}_corr.tif"   
-convert -auto-level -level 1%,100% -gamma $gamma -unsharp 0x40.0+$lc+0.0 -unsharp 0x1.4+0.4+0 "/tmp/${basename}_corr.tif" "/tmp/${basename}.tif"
-sharpedge -k gaussian -e 0 -w 1.0 -b 2 -t $edges -f 12 "/tmp/${basename}.tif" "/tmp/${basename}_sh.tif"
-convert "/tmp/${basename}_sh.tif" -quality 97 "/tmp/${basename}.jpg"
+#convert -set colorspace RGB -auto-level -level 1%,100% -gamma $gamma -unsharp 0x40.0+$lc+0.0 -unsharp 0x1.4+0.4+0 "/tmp/${basename}_corr.tif" "/tmp/${basename}.tif"
+convert -set colorspace RGB -auto-level -level 1%,100% -gamma $gamma -unsharp 0x40.0+$lc+0.0 "/tmp/${basename}_corr.tif" "/tmp/${basename}.tif"
+#sharpedge -k gaussian -e 0 -w 2.0 -b 2 -t $edges -f 12 "/tmp/${basename}.tif" "/tmp/${basename}_sh.tif"
+echo "Sharpening..."
+BLURIMG=/tmp/${basename}-2blur.png sharpen "/tmp/${basename}.tif" $realiso
+convert -set colorspace RGB "/tmp/${basename}_sh.tif" -quality 97 "/tmp/${basename}.jpg"
 
 echo "Copying exif-data..."
 exiftool -tagsFromFile "/tmp/${basename}_prw.jpg" "/tmp/${basename}.jpg"; rm -f "/tmp/${basename}_prw.jpg"

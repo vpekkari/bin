@@ -35,8 +35,9 @@ if [ "$BLURIMG" == "" ]; then
   BLURIMG="/tmp/sharpen/${ibase}-2b.png"
 fi
 
-convert -set colorspace RGB "$BLURIMG" -normalize -negate -morphology Edge Diamond -normalize -blur 2x2+0 -normalize "/tmp/sharpen/${ibase}-2e0.png"
-convert -set colorspace RGB "/tmp/sharpen/${ibase}-2e0.png" -linear-stretch 40%x1% "/tmp/sharpen/${ibase}-2e.png"
+convert -set colorspace RGB "$BLURIMG" -normalize -negate -morphology Edge Diamond -normalize -blur 6x2+0 -normalize "/tmp/sharpen/${ibase}-2e0.png"
+#convert -set colorspace RGB "/tmp/sharpen/${ibase}-2e0.png" -linear-stretch 40%x1% "/tmp/sharpen/${ibase}-2e.png"
+convert -set colorspace RGB "/tmp/sharpen/${ibase}-2e0.png" -linear-stretch 0%x2% "/tmp/sharpen/${ibase}-2e.png"
 convert -set colorspace RGB "/tmp/sharpen/${ibase}-2x.png" -unsharp 0x2+${amount}+0 "/tmp/sharpen/${ibase}-2s0.png"
 composite "/tmp/sharpen/${ibase}-2s0.png" "/tmp/sharpen/${ibase}-2x.png" "/tmp/sharpen/${ibase}-2e.png" "/tmp/sharpen/${ibase}-2s.png"
 
