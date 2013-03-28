@@ -290,4 +290,5 @@ cp "/tmp/${basename}.jpg" .
 rm -f /tmp/${basename}*.png
 rm -f /tmp/${basename}*.tif
 rm -f /tmp/${basename}*.jpg
-
+rm -f /tmp/${basename}*.jpg_original
+rm -f /tmp/${basename}*.ufraw
