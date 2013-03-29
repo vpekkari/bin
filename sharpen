@@ -18,9 +18,9 @@ fi
 ibase=`echo $ifile | cut -f1 -d'.'`
 iext=`echo $ifile | cut -f2 -d'.'`
 
-sharpen=`echo "$factor/10000"|bc -l`
+sharpen=`echo "$factor/40000"|bc -l`
 blur=`echo "4+$factor/200"|bc -l|cut -f1 -d'.'`
-amount=`echo "0.75+35/$factor"|bc -l`
+amount=`echo "0.50+35/$factor"|bc -l`
 
 echo "Sharpen: $sharpen"
 echo "Blur: $blur"
@@ -38,7 +38,7 @@ fi
 convert -set colorspace RGB "$BLURIMG" -normalize -negate -morphology Edge Diamond -normalize -blur 6x2+0 -normalize "/tmp/sharpen/${ibase}-2e0.png"
 #convert -set colorspace RGB "/tmp/sharpen/${ibase}-2e0.png" -linear-stretch 40%x1% "/tmp/sharpen/${ibase}-2e.png"
 convert -set colorspace RGB "/tmp/sharpen/${ibase}-2e0.png" -linear-stretch 0%x2% "/tmp/sharpen/${ibase}-2e.png"
-convert -set colorspace RGB "/tmp/sharpen/${ibase}-2x.png" -unsharp 0x2+${amount}+0 "/tmp/sharpen/${ibase}-2s0.png"
+convert -set colorspace RGB "/tmp/sharpen/${ibase}-2x.png" -unsharp 0x1.5+${amount}+0 "/tmp/sharpen/${ibase}-2s0.png"
 composite "/tmp/sharpen/${ibase}-2s0.png" "/tmp/sharpen/${ibase}-2x.png" "/tmp/sharpen/${ibase}-2e.png" "/tmp/sharpen/${ibase}-2s.png"
 
 convert -set colorspace RGB /tmp/sharpen/${ibase}-0.png /tmp/sharpen/${ibase}-1.png /tmp/sharpen/${ibase}-2s.png -set colorspace HSB -combine -colorspace RGB "${ipath}${ibase}_sh.${iext}"
