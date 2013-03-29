@@ -18,7 +18,7 @@ fi
 ibase=`echo $ifile | cut -f1 -d'.'`
 iext=`echo $ifile | cut -f2 -d'.'`
 
-sharpen=`echo "$factor/5000"|bc -l`
+sharpen=`echo "$factor/10000"|bc -l`
 blur=`echo "4+$factor/200"|bc -l|cut -f1 -d'.'`
 amount=`echo "0.75+35/$factor"|bc -l`
 
