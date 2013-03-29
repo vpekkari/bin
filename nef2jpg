@@ -242,7 +242,7 @@ convert -set colorspace RGB "/tmp/${basename}-2.png" "/tmp/${basename}-2mask-neg
 # <------
 
 echo "Denoising..."
-isonoise -r 1 -t 8 /tmp/${basename}-2b0.png /tmp/${basename}-2b1.png
+isonoise -r 2 -t 20 /tmp/${basename}-2b0.png /tmp/${basename}-2b1.png
 denoise -m mean -f 1.1 -n $(echo "$realiso/800" | concalc 2>/dev/null) /tmp/${basename}-2b1.png /tmp/${basename}-2b.png
 #denoise -m median -f 3 -n $(echo "$realiso/100" | concalc 2>/dev/null) /tmp/${basename}-2b0.png /tmp/${basename}-2b.png
 
