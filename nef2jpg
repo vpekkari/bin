@@ -41,7 +41,7 @@ film=$(echo "$file" | grep -o "ds." | grep -o ".$" | tr "[:upper:]" "[:lower:]")
 basename=$(echo "$file" | cut -f1 -d'.')
 ext=$(echo "$1" | cut -d'.' -f2)
 exp=0.7
-sat=0.83
+sat=0.95
 bb=auto
 lc=0.2
 imgfile=$1
@@ -242,7 +242,7 @@ convert -set colorspace RGB "/tmp/${basename}-2.png" "/tmp/${basename}-2mask-neg
 # <------
 
 echo "Denoising..."
-isonoise -r 2 -t 20 /tmp/${basename}-2b0.png /tmp/${basename}-2b1.png
+isonoise -r 1 -t 20 /tmp/${basename}-2b0.png /tmp/${basename}-2b1.png
 denoise -m mean -f 1.1 -n $(echo "$realiso/800" | concalc 2>/dev/null) /tmp/${basename}-2b1.png /tmp/${basename}-2b.png
 #denoise -m median -f 3 -n $(echo "$realiso/100" | concalc 2>/dev/null) /tmp/${basename}-2b0.png /tmp/${basename}-2b.png
 
@@ -281,7 +281,7 @@ BLURIMG=/tmp/${basename}-2blur.png sharpen "/tmp/${basename}.tif" $realiso
 convert -set colorspace RGB "/tmp/${basename}_sh.tif" -quality 97 "/tmp/${basename}.jpg"
 
 echo "Copying exif-data..."
-exiftool -tagsFromFile "/tmp/${basename}_prw.jpg" "/tmp/${basename}.jpg"; rm -f "/tmp/${basename}_prw.jpg"
+exiftool -tagsFromFile "/tmp/${basename}_prw.jpg" -ColorSpace="Adobe RGB" "/tmp/${basename}.jpg"; rm -f "/tmp/${basename}_prw.jpg"
 
 cp "/tmp/${basename}.jpg" .
 
