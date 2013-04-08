@@ -1,0 +1,52 @@
+#!/bin/bash
+
+if [ $1x == x ]; then
+  exit 1
+fi
+
+FRAMERATE="50:1"
+
+echo "Processing files: $*"
+
+for line in $*; do
+
+  echo "File \"$line\" in progress..."
+
+  FILE=$(echo "$line"|awk -F'/' '{print $NF}')
+  BASE=$(echo "$FILE"|cut -d'.' -f1)
+  AUDIO="${BASE}.wav"
+  RAWVIDEO="${BASE}.yuv"
+  VIDEO0="0_${RAWVIDEO}"
+  VIDEO1="1_${RAWVIDEO}"
+  FINALVIDEO="${BASE}.mov"
+  #CINVIDEO="${BASE}_cin.mov"
+
+  # Äänen ja kuvan erotus
+  mplayer "$FILE" -nosound -mc 0 -vf harddup -vo yuv4mpeg:file="$RAWVIDEO"
+  ffmpeg -y -i "$FILE" -vn -f wav "$AUDIO"
+
+  # Kohinan poisto, osa 1 (temporal noise filter)
+  cat "$RAWVIDEO" | yuvcorrect -T INTERLACED_BOTTOM_FIRST > "$VIDEO1"
+
+  # Kohinan poisto, osa 2 (spatial noise filter)
+  cat "$VIDEO1" | yuvdenoise -g 8,64,64 -m 2,16,64 -t 4,12,12 -M 2,4,4 -q > "$VIDEO0"
+
+  # Lomituksen poisto kuvasta
+  mplayer "$VIDEO0" -mc 0 -fps 50 -vf harddup,yadif=1:0,mcdeint=2:0:20 -vo yuv4mpeg:file="$VIDEO1"
+
+  # Framerate-muunnos
+  cat "$VIDEO1" | yuvfps -s 50:1 -r $FRAMERATE | yuvmotionfps -t 1024 -r 50:1 -s 0 -p 10 -b 8 > "$VIDEO0"
+
+  # Muunnos dv-muotoon
+  mencoder "$VIDEO0" -mc 0 -noskip -vf harddup,unsharp=l4x4:1.0:c4x4:2 -of lavf -lavfopts format=mov -ovc lavc -lavcopts vcodec=dvvideo -o "$FINALVIDEO"
+
+  # Cinelerran lopullinen video
+  #ffmpeg -i "$FINALVIDEO" -i "$AUDIO" -vcodec copy -acodec copy "$CINVIDEO"
+
+  # Väliaikaisten tiedostojen poisto
+  rm -f "$RAWVIDEO" "$VIDEO0" "$VIDEO1"
+         #"$FINALVIDEO" "$AUDIO"
+
+done
+
+exit 0
