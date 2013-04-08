@@ -22,23 +22,24 @@ for line in $*; do
   #CINVIDEO="${BASE}_cin.mov"
 
   # Äänen ja kuvan erotus
-  mplayer "$FILE" -nosound -mc 0 -vf harddup -vo yuv4mpeg:file="$RAWVIDEO"
+  #mplayer -noframedrop "$FILE" -mc 100 -vf harddup -vo yuv4mpeg:file="$RAWVIDEO"
+  mencoder -nosound -mc 100 -vf harddup "$FILE" -ovc raw -vf format=i420 -o "$RAWVIDEO"
   ffmpeg -y -i "$FILE" -vn -f wav "$AUDIO"
 
   # Kohinan poisto, osa 1 (temporal noise filter)
-  cat "$RAWVIDEO" | yuvcorrect -T INTERLACED_BOTTOM_FIRST > "$VIDEO1"
+  ffmpeg -vsync 1 -i "$RAWVIDEO" -f yuv4mpegpipe -vcodec rawvideo - | yuvcorrect -T INTERLACED_BOTTOM_FIRST > "$VIDEO1"
 
   # Kohinan poisto, osa 2 (spatial noise filter)
   cat "$VIDEO1" | yuvdenoise -g 8,64,64 -m 2,16,64 -t 4,12,12 -M 2,4,4 -q > "$VIDEO0"
 
   # Lomituksen poisto kuvasta
-  mplayer "$VIDEO0" -mc 0 -fps 50 -vf harddup,yadif=1:0,mcdeint=2:0:20 -vo yuv4mpeg:file="$VIDEO1"
+  mplayer -noframedrop "$VIDEO0" -mc 100 -fps 50 -vf harddup,yadif=1:0,mcdeint=2:0:20 -vo yuv4mpeg:file="$VIDEO1"
 
   # Framerate-muunnos
   cat "$VIDEO1" | yuvfps -s 50:1 -r $FRAMERATE | yuvmotionfps -t 1024 -r 50:1 -s 0 -p 10 -b 8 > "$VIDEO0"
 
   # Muunnos dv-muotoon
-  mencoder "$VIDEO0" -mc 0 -noskip -vf harddup,unsharp=l4x4:1.0:c4x4:2 -of lavf -lavfopts format=mov -ovc lavc -lavcopts vcodec=dvvideo -o "$FINALVIDEO"
+  mencoder "$VIDEO0" -mc 100 -vf harddup,unsharp=l4x4:1.0:c4x4:2 -of lavf -lavfopts format=mov -ovc lavc -lavcopts vcodec=dvvideo -o "$FINALVIDEO"
 
   # Cinelerran lopullinen video
   #ffmpeg -i "$FINALVIDEO" -i "$AUDIO" -vcodec copy -acodec copy "$CINVIDEO"
