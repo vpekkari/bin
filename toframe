@@ -1,0 +1,14 @@
+#!/bin/bash
+
+ls -1 *.jpg|while read img; do
+  w=`exiftool -T -ImageWidth "$img"` 
+  h=`exiftool -T -ImageHeight "$img"` 
+  echo -n "Converting $img... "
+  if [ $w -gt $h ]; then
+    convert "$img" -profile /usr/share/color/icc/sRGB.icm -resize 800x -quality 90 "$img"
+  else
+    convert "$img" -profile /usr/share/color/icc/sRGB.icm -resize x600 -quality 90 "$img"
+  fi
+  echo "Done!"
+done
+
