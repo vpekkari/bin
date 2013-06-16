@@ -82,7 +82,7 @@ fi
 DOC=`date +%s`
 HEADER="Dokumentti"
 CONTENT=`cat /tmp/scanner/*.content`
-TXT=`cat /tmp/scanner/*.txt`
+TXT=`cat /tmp/scanner/*.txt | iconv -c --to ISO-8859-15`
 
 echo -e $CONTENT|grep -q "^Tili:"
 if [ $? = 0 ]; then
@@ -98,7 +98,7 @@ sendemail -f "Scanner <nimi1@gmail.com>" \
           -m "$CONTENT $TXT" \
           -u "$HEADER $YRITYS" \
           -a "/tmp/scanner/${DOC}.pdf" \
-          -o message-charset=UTF-8 \
+          -o message-charset=ISO-8859-15 \
           -s smtp.dnainternet.net
 rm -rf "/tmp/scanner"
 
