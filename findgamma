@@ -1,0 +1,42 @@
+#!/bin/bash
+
+# $1 = tiedosto
+# $2 = tavoiteltava mean-arvo
+
+currmean=0
+tgtmean=$2
+file=$1
+amount=0.32
+gamma=1
+oper="x"
+diff=1
+scale="`echo "0.5/$amount" | bc -l | cut -f1 -d'.'`"
+
+convert -resize ${scale}% -set colorspace RGB -auto-level -level 1%,97% -gamma $gamma -quality 85 "$1" "/tmp/$$_gamma.jpg"
+currmean=`identify -format '%[mean]' "/tmp/$$_gamma.jpg" | cut -f1 -d'.'`
+
+while [ $diff -eq 1 ] || [ $scale -lt 100 ]; do
+  voper=$oper
+  if [ $currmean -gt $tgtmean ]; then
+    oper="-"
+  else
+    oper="+"
+  fi
+  if [ "$voper" != "x" ]; then
+    if [ "$voper" != "$oper" ]; then
+      amount=`echo "$amount/2"|bc -l`
+      scale="`echo "0.5/$amount" | bc -l | cut -f1 -d'.'`"
+      if [ $scale -gt 100 ]; then
+        scale=100
+      fi
+    fi
+  fi
+  gamma=`echo "${gamma}${oper}${amount}"|bc -l`
+  echo "Scale: ${scale}%, Mean: $currmean, Gamma: $gamma" 1>&2
+  convert -resize ${scale}% -set colorspace RGB -auto-level -level 1%,97% -gamma $gamma -quality 85 "$1" "/tmp/$$_gamma.jpg"
+  currmean=`identify -format '%[mean]' "/tmp/$$_gamma.jpg" | cut -f1 -d'.'`
+  diff=`echo "($amount-0.005)>0" | bc -l`
+done
+rm -f "/tmp/$$_gamma.jpg"
+
+echo $gamma
