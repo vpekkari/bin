@@ -1,0 +1,13 @@
+#!/bin/bash
+
+w=`zenity --entry --text="Leveys" --entry-text="1280"`
+if [ $? -ne 0 ]; then
+  exit 0
+fi
+
+h=`zenity --entry --text="Korkeus" --entry-text="1024"`
+if [ $? -ne 0 ]; then
+  exit 0
+fi
+
+publish $w $h $@

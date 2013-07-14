@@ -1,0 +1,11 @@
+#!/bin/bash
+
+w=`zenity --entry --text="Valotusarvo" --entry-text="0"`
+if [ $? -ne 0 ]; then
+  exit 0
+fi
+
+ls -1 $@ | while read f; do
+  nef2jpg $f $w
+done
+
