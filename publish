@@ -45,8 +45,8 @@ ls -1 $@|while read img; do
     fi
   fi
   exiftool -ColorSpace="sRGB" "/tmp/${bn}_$$.${ext}"
-  mkdir -p _publish
-  cp "/tmp/${bn}_$$.${ext}" "_publish/${bn}_s.${ext}"
+  mkdir -p "${width}x${height}"
+  cp "/tmp/${bn}_$$.${ext}" "${width}x${height}/${bn}_s.${ext}"
   rm -f /tmp/${bn}_$$.${ext}
   echo "Done!"
 done
