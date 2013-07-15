@@ -242,8 +242,9 @@ convert -set colorspace RGB "/tmp/${basename}-2.png" "/tmp/${basename}-2mask-neg
 # <------
 
 echo "Denoising..."
-isonoise -r 1 -t 20 /tmp/${basename}-2b0.png /tmp/${basename}-2b1.png
-denoise -m mean -f 1.1 -n $(echo "$realiso/800" | concalc 2>/dev/null) /tmp/${basename}-2b1.png /tmp/${basename}-2b.png
+# isonoise -r 1 -t 20 /tmp/${basename}-2b0.png /tmp/${basename}-2b1.png
+# denoise -m mean -f 1.1 -n $(echo "$realiso/800" | concalc 2>/dev/null) /tmp/${basename}-2b1.png /tmp/${basename}-2b.png
+convert -set colorspace RGB "/tmp/${basename}-2b0.png" \( +clone -enhance -alpha on -channel alpha -evaluate multiply `echo "$realiso/800"|bc -l` \) -composite "/tmp/${basename}-2b.png"
 #denoise -m median -f 3 -n $(echo "$realiso/100" | concalc 2>/dev/null) /tmp/${basename}-2b0.png /tmp/${basename}-2b.png
 
 convert -set colorspace RGB /tmp/${basename}_dn-0.png /tmp/${basename}-1b.png /tmp/${basename}-2b.png -set colorspace HSL -combine -colorspace RGB -level ${lcorr}% /tmp/${basename}.tif
@@ -259,18 +260,19 @@ rm -f "/tmp/${basename}*.png"
 sharpen=$(echo "$realiso/8000"|concalc 2>/dev/null)
 echo "Converting tif -> jpg ... $sharpen"
 
-while [ $newmean -lt $mean ]; do
-  gamma=`echo "$gamma+0.05" | concalc 2>/dev/null`
-  echo -e "Gamma: $gamma\nSource mean: $mean\nTarget mean: $newmean\n"
-  convert -set colorspace RGB -auto-level -level 1%,97% -gamma $gamma -quality 85 "/tmp/${basename}_corr.tif" "/tmp/${basename}_gamma.jpg"
-  newmean=`identify -format '%[mean]' "/tmp/${basename}_gamma.jpg" | cut -f1 -d'.'`
-done
-while [ $newmean -gt $mean ]; do
-  gamma=`echo "$gamma-0.01" | concalc 2>/dev/null`
-  echo -e "Gamma: $gamma\nSource mean: $mean\nTarget mean: $newmean\n"
-  convert -set colorspace RGB -auto-level -level 1%,97% -gamma $gamma -quality 85 "/tmp/${basename}_corr.tif" "/tmp/${basename}_gamma.jpg"
-  newmean=`identify -format '%[mean]' "/tmp/${basename}_gamma.jpg" | cut -f1 -d'.'`
-done
+#while [ $newmean -lt $mean ]; do
+#  gamma=`echo "$gamma+0.05" | concalc 2>/dev/null`
+#  echo -e "Gamma: $gamma\nSource mean: $mean\nTarget mean: $newmean\n"
+#  convert -set colorspace RGB -auto-level -level 1%,97% -gamma $gamma -quality 85 "/tmp/${basename}_corr.tif" "/tmp/${basename}_gamma.jpg"
+#  newmean=`identify -format '%[mean]' "/tmp/${basename}_gamma.jpg" | cut -f1 -d'.'`
+#done
+#while [ $newmean -gt $mean ]; do
+#  gamma=`echo "$gamma-0.01" | concalc 2>/dev/null`
+#  echo -e "Gamma: $gamma\nSource mean: $mean\nTarget mean: $newmean\n"
+#  convert -set colorspace RGB -auto-level -level 1%,97% -gamma $gamma -quality 85 "/tmp/${basename}_corr.tif" "/tmp/${basename}_gamma.jpg"
+#  newmean=`identify -format '%[mean]' "/tmp/${basename}_gamma.jpg" | cut -f1 -d'.'`
+#done
+gamma=`findgamma "/tmp/${basename}_corr.tif" "$mean"`
 
 #convert -auto-level -level 3%,100% -gamma $gamma -unsharp 0x40.0+$lc+0.0 -unsharp 0.5x0.5+1.5+$sharpen -quality 97 "/tmp/${basename}_corr.tif" "/tmp/${basename}.jpg"; rm -f "/tmp/${basename}_corr.tif"   
 #convert -set colorspace RGB -auto-level -level 1%,100% -gamma $gamma -unsharp 0x40.0+$lc+0.0 -unsharp 0x1.4+0.4+0 "/tmp/${basename}_corr.tif" "/tmp/${basename}.tif"
