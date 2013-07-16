@@ -244,7 +244,7 @@ convert -set colorspace RGB "/tmp/${basename}-2.png" "/tmp/${basename}-2mask-neg
 echo "Denoising..."
 # isonoise -r 1 -t 20 /tmp/${basename}-2b0.png /tmp/${basename}-2b1.png
 # denoise -m mean -f 1.1 -n $(echo "$realiso/800" | concalc 2>/dev/null) /tmp/${basename}-2b1.png /tmp/${basename}-2b.png
-convert -set colorspace RGB "/tmp/${basename}-2b0.png" \( +clone -enhance -alpha on -channel alpha -evaluate multiply `echo "$realiso/800"|bc -l` \) -composite "/tmp/${basename}-2b.png"
+convert "/tmp/${basename}-2b0.png" \( +clone -enhance -alpha on -channel alpha -evaluate multiply `echo "$realiso/800"|bc -l` \) -composite "/tmp/${basename}-2b.png"
 #denoise -m median -f 3 -n $(echo "$realiso/100" | concalc 2>/dev/null) /tmp/${basename}-2b0.png /tmp/${basename}-2b.png
 
 convert -set colorspace RGB /tmp/${basename}_dn-0.png /tmp/${basename}-1b.png /tmp/${basename}-2b.png -set colorspace HSL -combine -colorspace RGB -level ${lcorr}% /tmp/${basename}.tif
