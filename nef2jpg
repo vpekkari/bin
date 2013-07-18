@@ -165,7 +165,7 @@ if [ "$model" = "d700" ]; then
 fi
 
 exp=$(echo "$exp+$ecorr" |concalc 2>/dev/null)
-blur=$(echo "4+$realiso/200" | bc -l | cut -f1 -d'.')
+blur=$(echo "1+$realiso/200" | bc -l | cut -f1 -d'.')
 denoise=$(echo "$realiso/10" | bc -l | cut -f1 -d'.')
 denoise2=$(echo "$denoise*3" | bc -l )
 hotpixel=$(echo "$iso/10" | concalc 2>/dev/null)
@@ -176,7 +176,7 @@ bgamma=0
 for i in 3200 1600 800 400 200 100; do
   bgamma=$(echo "$bgamma+1" | bc -l)
   if [ $i -le $realiso ]; then
-    bgamma=$(echo "0+$bgamma*5" | bc -l)
+    bgamma=$(echo "6+$bgamma*3" | bc -l)
     break
   fi
 done
@@ -242,9 +242,9 @@ convert -set colorspace RGB "/tmp/${basename}-2.png" "/tmp/${basename}-2mask-neg
 # <------
 
 echo "Denoising..."
-# isonoise -r 1 -t 20 /tmp/${basename}-2b0.png /tmp/${basename}-2b1.png
-# denoise -m mean -f 1.1 -n $(echo "$realiso/800" | concalc 2>/dev/null) /tmp/${basename}-2b1.png /tmp/${basename}-2b.png
-convert "/tmp/${basename}-2b0.png" \( +clone -enhance -alpha on -channel alpha -evaluate multiply `echo "$realiso/800"|bc -l` \) -composite "/tmp/${basename}-2b.png"
+isonoise -r 1 -t 20 /tmp/${basename}-2b0.png /tmp/${basename}-2b1.png
+denoise -m mean -f 1.1 -n $(echo "$realiso/800" | concalc 2>/dev/null) /tmp/${basename}-2b1.png /tmp/${basename}-2b.png
+# convert "/tmp/${basename}-2b0.png" \( +clone -enhance -alpha on -channel alpha -evaluate multiply `echo "$realiso/800"|bc -l` \) -composite "/tmp/${basename}-2b.png"
 #denoise -m median -f 3 -n $(echo "$realiso/100" | concalc 2>/dev/null) /tmp/${basename}-2b0.png /tmp/${basename}-2b.png
 
 convert -set colorspace RGB /tmp/${basename}_dn-0.png /tmp/${basename}-1b.png /tmp/${basename}-2b.png -set colorspace HSL -combine -colorspace RGB -level ${lcorr}% /tmp/${basename}.tif

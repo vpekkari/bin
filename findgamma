@@ -6,7 +6,7 @@
 currmean=0
 tgtmean=$2
 file=$1
-amount=0.32
+amount=0.08
 gamma=1
 oper="x"
 diff=1
