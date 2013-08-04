@@ -232,7 +232,7 @@ convert -set colorspace RGB "/tmp/${basename}-2.png" +level 2% -gamma $bgamma "/
 convert -set colorspace RGB "/tmp/${basename}-2blur.png" -gamma $bgamma -negate "/tmp/${basename}-2blurgamma20.png"
 
 echo "Chroma..."
-convert -set colorspace RGB "/tmp/${basename}-2blur.png" -contrast -contrast -gamma $cgamma "/tmp/${basename}-2blurgamma2.png"
+convert -set colorspace RGB "/tmp/${basename}-2blur.png" -sigmoidal-contrast 10 -gamma $cgamma "/tmp/${basename}-2blurgamma2.png"
 convert -set colorspace RGB "/tmp/${basename}_dn-1.png" "/tmp/${basename}-2blurgamma2.png" -compose multiply -composite "/tmp/${basename}-1b.png"
 
 echo "Compositing luma..."
@@ -276,7 +276,7 @@ gamma=`findgamma "/tmp/${basename}_corr.tif" "$mean"`
 
 #convert -auto-level -level 3%,100% -gamma $gamma -unsharp 0x40.0+$lc+0.0 -unsharp 0.5x0.5+1.5+$sharpen -quality 97 "/tmp/${basename}_corr.tif" "/tmp/${basename}.jpg"; rm -f "/tmp/${basename}_corr.tif"   
 #convert -set colorspace RGB -auto-level -level 1%,100% -gamma $gamma -unsharp 0x40.0+$lc+0.0 -unsharp 0x1.4+0.4+0 "/tmp/${basename}_corr.tif" "/tmp/${basename}.tif"
-convert -set colorspace RGB -auto-level -level 1%,100% -gamma $gamma -unsharp 0x40.0+$lc+0.0 "/tmp/${basename}_corr.tif" "/tmp/${basename}.tif"
+convert -set colorspace RGB -auto-level -level 1%,100% -gamma $gamma -unsharp 0x50.0+$lc+0.0 "/tmp/${basename}_corr.tif" "/tmp/${basename}.tif"
 #sharpedge -k gaussian -e 0 -w 2.0 -b 2 -t $edges -f 12 "/tmp/${basename}.tif" "/tmp/${basename}_sh.tif"
 echo "Sharpening..."
 BLURIMG=/tmp/${basename}-2blur.png sharpen "/tmp/${basename}.tif" $realiso
