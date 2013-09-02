@@ -16,6 +16,7 @@ fi
 shift 2
 
 ls -1 $@|while read img; do
+  resize=""
   ext=`echo $img | awk -F'.' '{print $NF}'`
   bn=`echo $img | awk -F'/' '{print $NF}' | sed "s/\.\${ext}$//g"`
   w=`exiftool -T -ImageWidth "$img"` 
@@ -23,27 +24,27 @@ ls -1 $@|while read img; do
   cp=`exiftool -T -ColorSpace "$img"` 
   emb=`exiftool -T -ProfileCMMType "$img"`
   echo -n "Converting $img... "
+
   if [ $w -gt $h ]; then
-    if [ "$emb" != "-" ]; then
-      convert "$img" -profile "$sprofile" -resize ${width}x -quality 90 "/tmp/${bn}_$$.${ext}"
-    else
-      if [ "$cp" == "Adobe RGB" ]; then
-        convert "$img" -profile "$aprofile" -profile "$sprofile" -resize ${width}x -quality 90 "/tmp/${bn}_$$.${ext}"
-      else
-        convert "$img" -resize ${width}x -quality 90 "/tmp/${bn}_$$.${ext}"
-      fi
+    if [ $width -gt 0 ]; then
+      resize="-resize ${width}x"
     fi
   else
-    if [ "$emb" != "-" ]; then
-      convert "$img" -profile "$sprofile" -resize x${height} -quality 90 "/tmp/${bn}_$$.${ext}"
-    else
-      if [ "$cp" == "Adobe RGB" ]; then
-        convert "$img" -profile "$aprofile" -profile "$sprofile" -resize x${height} -quality 90 "/tmp/${bn}_$$.${ext}"
-      else
-        convert "$img" -resize x${height} -quality 90 "/tmp/${bn}_$$.${ext}"
-      fi
+    if [ $height -gt 0 ]; then
+      resize="-resize x${height}"
     fi
   fi
+
+  if [ "$emb" != "-" ]; then
+    convert "$img" -profile "$sprofile" $resize -quality 90 "/tmp/${bn}_$$.${ext}"
+  else
+    if [ "$cp" == "Adobe RGB" ]; then
+      convert "$img" -profile "$aprofile" -profile "$sprofile" $resize -quality 90 "/tmp/${bn}_$$.${ext}"
+    else
+      convert "$img" $resize -quality 90 "/tmp/${bn}_$$.${ext}"
+    fi
+  fi
+
   exiftool -ColorSpace="sRGB" "/tmp/${bn}_$$.${ext}"
   mkdir -p "${width}x${height}"
   cp "/tmp/${bn}_$$.${ext}" "${width}x${height}/${bn}_s.${ext}"
