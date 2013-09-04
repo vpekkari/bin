@@ -41,7 +41,7 @@ film=$(echo "$file" | grep -o "ds." | grep -o ".$" | tr "[:upper:]" "[:lower:]")
 basename=$(echo "$file" | cut -f1 -d'.')
 ext=$(echo "$1" | cut -d'.' -f2)
 exp=0.7
-sat=0.95
+sat=0.9
 bb=auto
 lc=0.2
 imgfile=$1
@@ -144,7 +144,7 @@ fi
 
 #temp=""
 #green=""
-iso=$(exiftool "/tmp/${basename}_prw.jpg" | grep "ISO Setting" | cut -d":" -f2 | awk -F' ' '{print $NF}')
+iso=$(exiftool -s "/tmp/${basename}_prw.jpg" | grep "ISO " | cut -d":" -f2 | awk -F' ' '{print $NF}')
 #realiso=$(echo "$iso*2^$ecorr"| bc -l|cut -f1 -d'.')
 realiso=$(echo "$iso*2^$ecorr"| concalc 2>/dev/null | cut -f1 -d'.')
 lcorr=$(echo "$realiso/200" | concalc 2>/dev/null)
@@ -181,7 +181,9 @@ for i in 3200 1600 800 400 200 100; do
   fi
 done
 
-cgamma=$(echo "$bgamma/3" | bc -l )	# 5 -> 3
+#cgamma=$(echo "$bgamma/5" | bc -l )	# 5 -> 3
+a=`echo "20000/$realiso"|bc -l`
+b=`echo "$realiso/80"|bc -l|cut -f1 -d'.'`
 dcontrast=$(echo "$bgamma/10" | bc -l | cut -f1 -d'.')
 dcstr=" -contrast -contrast "
 for i in `seq 1 1 $dcontrast`; do
@@ -193,7 +195,9 @@ echo "Iso: $iso"
 echo "Real iso: $realiso"
 echo "Mean: $mean"
 echo "Gamma (luma denoise): $bgamma"
-echo "Gamma (chroma denoise): $cgamma"
+#echo "Gamma (chroma denoise): $cgamma"
+echo "a: $a"
+echo "b: ${b}%"
 echo "Denoising threshold: $denoise"
 echo "Denoising threshold 2: $denoise2"
 echo "Denoising contrast: $dcontrast"
@@ -232,7 +236,7 @@ convert -set colorspace RGB "/tmp/${basename}-2.png" +level 2% -gamma $bgamma "/
 convert -set colorspace RGB "/tmp/${basename}-2blur.png" -gamma $bgamma -negate "/tmp/${basename}-2blurgamma20.png"
 
 echo "Chroma..."
-convert -set colorspace RGB "/tmp/${basename}-2blur.png" -sigmoidal-contrast 10 -gamma $cgamma "/tmp/${basename}-2blurgamma2.png"
+convert -set colorspace RGB "/tmp/${basename}-2blur.png" -sigmoidal-contrast $a,${b}% "/tmp/${basename}-2blurgamma2.png"
 convert -set colorspace RGB "/tmp/${basename}_dn-1.png" "/tmp/${basename}-2blurgamma2.png" -compose multiply -composite "/tmp/${basename}-1b.png"
 
 echo "Compositing luma..."
@@ -242,9 +246,9 @@ convert -set colorspace RGB "/tmp/${basename}-2.png" "/tmp/${basename}-2mask-neg
 # <------
 
 echo "Denoising..."
-isonoise -r 1 -t 20 /tmp/${basename}-2b0.png /tmp/${basename}-2b1.png
-denoise -m mean -f 1.1 -n $(echo "$realiso/800" | concalc 2>/dev/null) /tmp/${basename}-2b1.png /tmp/${basename}-2b.png
-# convert "/tmp/${basename}-2b0.png" \( +clone -enhance -alpha on -channel alpha -evaluate multiply `echo "$realiso/800"|bc -l` \) -composite "/tmp/${basename}-2b.png"
+# isonoise -r 1 -t 20 /tmp/${basename}-2b0.png /tmp/${basename}-2b1.png
+# denoise -m mean -f 1.1 -n $(echo "$realiso/800" | concalc 2>/dev/null) /tmp/${basename}-2b1.png /tmp/${basename}-2b.png
+convert "/tmp/${basename}-2b0.png" \( +clone -enhance -alpha on -channel alpha -evaluate multiply `echo "$realiso/800"|bc -l` \) -composite "/tmp/${basename}-2b.png"
 #denoise -m median -f 3 -n $(echo "$realiso/100" | concalc 2>/dev/null) /tmp/${basename}-2b0.png /tmp/${basename}-2b.png
 
 convert -set colorspace RGB /tmp/${basename}_dn-0.png /tmp/${basename}-1b.png /tmp/${basename}-2b.png -set colorspace HSL -combine -colorspace RGB -level ${lcorr}% /tmp/${basename}.tif
@@ -280,10 +284,10 @@ convert -set colorspace RGB -auto-level -level 1%,100% -gamma $gamma -unsharp 0x
 #sharpedge -k gaussian -e 0 -w 2.0 -b 2 -t $edges -f 12 "/tmp/${basename}.tif" "/tmp/${basename}_sh.tif"
 echo "Sharpening..."
 BLURIMG=/tmp/${basename}-2blur.png sharpen "/tmp/${basename}.tif" $realiso
-convert -set colorspace RGB "/tmp/${basename}_sh.tif" -quality 97 "/tmp/${basename}.jpg"
+convert -set colorspace RGB -units PixelsPerInch "/tmp/${basename}_sh.tif" -quality 97 -density 300x300 "/tmp/${basename}.jpg"
 
 echo "Copying exif-data..."
-exiftool -tagsFromFile "/tmp/${basename}_prw.jpg" -ColorSpace="Adobe RGB" "/tmp/${basename}.jpg"; rm -f "/tmp/${basename}_prw.jpg"
+exiftool -tagsFromFile "/tmp/${basename}_prw.jpg" -ColorSpace="Adobe RGB" -XResolution=300 -YResolution=300 -ResolutionUnit=inches "/tmp/${basename}.jpg"; rm -f "/tmp/${basename}_prw.jpg"
 
 cp "/tmp/${basename}.jpg" .
 
