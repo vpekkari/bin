@@ -20,7 +20,8 @@ iext=`echo $ifile | cut -f2 -d'.'`
 
 sharpen=`echo "$factor/10000"|bc -l`
 blur=`echo "4+$factor/200"|bc -l|cut -f1 -d'.'`
-amount=`echo "0.50+35/$factor"|bc -l`
+#amount=`echo "0.50+35/$factor"|bc -l`
+amount=0.50
 
 echo "Sharpen: $sharpen"
 echo "Blur: $blur"
@@ -29,7 +30,24 @@ echo "Amount: $amount"
 mkdir -p /tmp/sharpen
 
 convert -set colorspace RGB "${ipath}${ifile}" -colorspace HSB -separate /tmp/sharpen/${ibase}.png
-convert -set colorspace RGB "/tmp/sharpen/${ibase}-2.png" -unsharp 0x1.5+0.5+0 -unsharp 0x1+0.5+${sharpen} "/tmp/sharpen/${ibase}-2x.png"
+convert -set colorspace RGB "/tmp/sharpen/${ibase}-2.png" -unsharp 6x1.5+0.25+0 -unsharp 5x1.25+0.25+${sharpen} "/tmp/sharpen/${ibase}-2x.png"
+convert -set colorspace RGB "/tmp/sharpen/${ibase}-2x.png" -normalize -morphology Edge Diamond "/tmp/sharpen/${ibase}-tst.png"
+sharpness1=`identify -format "%[max]" "/tmp/sharpen/${ibase}-tst.png"`
+sharpness2=`identify -format "%[mean]" "/tmp/sharpen/${ibase}-tst.png"`
+
+a=`echo "l(2000/$sharpness2)*2" | bc -l`
+r=`echo "l(65535/$sharpness1)*1.5+0.5" | bc -l`
+
+if [ `echo "$a<0"|bc -l` -eq 1 ]; then
+  a=0
+fi
+
+a=`echo "$amount+$a"|bc -l`
+
+echo "Sharpness: $sharpness1 / $sharpness2"
+echo "Amount: $a"
+echo "Radius:  $r"
+
 if [ "$BLURIMG" == "" ]; then
   convert -set colorspace RGB "/tmp/sharpen/${ibase}-2.png" +level 2% -selective-blur 12x7+${blur}% "/tmp/sharpen/${ibase}-2b.png"
   BLURIMG="/tmp/sharpen/${ibase}-2b.png"
@@ -38,7 +56,7 @@ fi
 convert -set colorspace RGB "$BLURIMG" -normalize -negate -morphology Edge Diamond -normalize -blur 6x2+0 -normalize "/tmp/sharpen/${ibase}-2e0.png"
 #convert -set colorspace RGB "/tmp/sharpen/${ibase}-2e0.png" -linear-stretch 40%x1% "/tmp/sharpen/${ibase}-2e.png"
 convert -set colorspace RGB "/tmp/sharpen/${ibase}-2e0.png" -linear-stretch 0%x2% "/tmp/sharpen/${ibase}-2e.png"
-convert -set colorspace RGB "/tmp/sharpen/${ibase}-2x.png" -unsharp 0x1+${amount}+0 "/tmp/sharpen/${ibase}-2s0.png"
+convert -set colorspace RGB "/tmp/sharpen/${ibase}-2x.png" -unsharp 0x${r}+${a}+0 "/tmp/sharpen/${ibase}-2s0.png"
 composite "/tmp/sharpen/${ibase}-2s0.png" "/tmp/sharpen/${ibase}-2x.png" "/tmp/sharpen/${ibase}-2e.png" "/tmp/sharpen/${ibase}-2s.png"
 
 convert -set colorspace RGB /tmp/sharpen/${ibase}-0.png /tmp/sharpen/${ibase}-1.png /tmp/sharpen/${ibase}-2s.png -set colorspace HSB -combine -colorspace RGB "${ipath}${ibase}_sh.${iext}"
