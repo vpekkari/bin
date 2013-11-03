@@ -71,7 +71,7 @@ if [ $? -eq 0 ]; then
 fi
 
 ufraw-batch --embedded-image --overwrite --output=/tmp/${basename}_emb.jpg "$imgfile"
-ufraw-batch --conf=$HOME/.ufrawrc-$model --auto-crop --black-point=auto --noexif --overwrite --wavelet-denoising-threshold=$denoise --restore=clip --wb=camera --interpolation=ahd --create-id=no --out-type=jpg --out-depth=8 --output=/tmp/${basename}_mean.jpg "$imgfile" 2>/dev/null
+#ufraw-batch --conf=$HOME/.ufrawrc-$model --auto-crop --black-point=auto --noexif --overwrite --wavelet-denoising-threshold=$denoise --restore=clip --wb=camera --interpolation=ahd --create-id=no --out-type=jpg --out-depth=8 --output=/tmp/${basename}_mean.jpg "$imgfile" 2>/dev/null
 emin=`identify -format '%[min]' /tmp/${basename}_emb.jpg | cut -f1 -d'.'`
 emean=`identify -format '%[mean]' /tmp/${basename}_emb.jpg | cut -f1 -d'.'`
 emax=`identify -format '%[max]' /tmp/${basename}_emb.jpg | cut -f1 -d'.'`
@@ -151,7 +151,11 @@ lcorr=$(echo "$realiso/200" | concalc 2>/dev/null)
 if [ `echo "$lcorr" | cut -f1 -d'.'` -ge 8 ]; then
   lcorr=8
 fi
+lcorr=0
 
+if [ "$model" = "d50" ]; then
+  exp=0.7
+fi
 if [ "$model" = "d200" ]; then
   exp=0.7
 fi
@@ -168,12 +172,13 @@ exp=$(echo "$exp+$ecorr" |concalc 2>/dev/null)
 blur=$(echo "1+$realiso/200" | bc -l | cut -f1 -d'.')
 denoise=$(echo "$realiso/10" | bc -l | cut -f1 -d'.')
 denoise2=$(echo "$denoise*3" | bc -l )
+denoise=0
 hotpixel=$(echo "$iso/10" | concalc 2>/dev/null)
 edges=$(echo "1+$realiso/200" | bc -l | cut -f1 -d'.')
 
 #bgamma=$(echo "16000/$iso" | bc -l | cut -f1 -d'.')
 bgamma=0
-for i in 3200 1600 800 400 200 100; do
+for i in 3200 1600 800 400 200 100 50 25; do
   bgamma=$(echo "$bgamma+1" | bc -l)
   if [ $i -le $realiso ]; then
     bgamma=$(echo "6+$bgamma*3" | bc -l)
@@ -183,8 +188,8 @@ done
 
 #cgamma=$(echo "$bgamma/5" | bc -l )	# 5 -> 3
 a=`echo "20000/$realiso"|bc -l`
-b=`echo "$realiso/80"|bc -l|cut -f1 -d'.'`
-dcontrast=$(echo "$bgamma/10" | bc -l | cut -f1 -d'.')
+b=`echo "$realiso/80"|concalc 2>/dev/null`
+dcontrast=$(echo "$bgamma/6" | bc -l | cut -f1 -d'.')
 dcstr=" -contrast -contrast "
 for i in `seq 1 1 $dcontrast`; do
   dcstr=`echo "$dcstr -contrast "`
@@ -205,6 +210,7 @@ echo "Hotpixel sensitivity: $hotpixel"
 echo "Color temperature: $temp, $green"
 echo "Edges threshold: $edges"
 echo "Black level correction: $lcorr"
+echo "dcstr: $dcstr"
 
 if [ $cacorr -eq 1 ]; then
   if [ ! -f /tmp/${basename}.ca ]; then
@@ -225,13 +231,13 @@ else
   ufraw-batch --conf=$HOME/.ufrawrc-$model --auto-crop --wb=camera --black-point=$bb --interpolation=ahd --exposure=$exp --saturation=$sat --restore=hsv --clip=film --wavelet-denoising-threshold=$denoise2 --hotpixel-sensitivity=$hotpixel --color-smoothing --out-type=tiff --out-depth=16 --noexif --overwrite --create-id=no --output=/tmp/${basename}_dn.tif "$imgfile"
 fi
 
-convert -set colorspace RGB /tmp/${basename}.tif -colorspace HSL -separate /tmp/${basename}.png
-convert -set colorspace RGB /tmp/${basename}_dn.tif -colorspace HSL -separate /tmp/${basename}_dn.png
+convert -set colorspace RGB /tmp/${basename}.tif -colorspace HSB -separate /tmp/${basename}.png
+convert -set colorspace RGB /tmp/${basename}_dn.tif -colorspace HSB -separate /tmp/${basename}_dn.png
 # YCbCr
 
 # ------>
 echo "Blurring luma..."
-convert -set colorspace RGB "/tmp/${basename}-2.png" +level 2% -selective-blur 12x7+${blur}% "/tmp/${basename}-2blur.png"
+convert -set colorspace RGB "/tmp/${basename}_dn-2.png" +level 2% -selective-blur 12x7+${blur}% "/tmp/${basename}-2blur.png"
 convert -set colorspace RGB "/tmp/${basename}-2.png" +level 2% -gamma $bgamma "/tmp/${basename}-2gamma20.png"
 convert -set colorspace RGB "/tmp/${basename}-2blur.png" -gamma $bgamma -negate "/tmp/${basename}-2blurgamma20.png"
 
@@ -246,12 +252,12 @@ convert -set colorspace RGB "/tmp/${basename}-2.png" "/tmp/${basename}-2mask-neg
 # <------
 
 echo "Denoising..."
-# isonoise -r 1 -t 20 /tmp/${basename}-2b0.png /tmp/${basename}-2b1.png
-# denoise -m mean -f 1.1 -n $(echo "$realiso/800" | concalc 2>/dev/null) /tmp/${basename}-2b1.png /tmp/${basename}-2b.png
-convert "/tmp/${basename}-2b0.png" \( +clone -enhance -alpha on -channel alpha -evaluate multiply `echo "$realiso/800"|bc -l` \) -composite "/tmp/${basename}-2b.png"
-#denoise -m median -f 3 -n $(echo "$realiso/100" | concalc 2>/dev/null) /tmp/${basename}-2b0.png /tmp/${basename}-2b.png
+#isonoise -r 1 -t 20 /tmp/${basename}-2b0.png /tmp/${basename}-2b1.png
+# denoise -m mean -f 1.1 -n $(echo "$realiso/800" | concalc 2>/dev/null) /tmp/${basename}-2b0.png /tmp/${basename}-2b.png
+convert "/tmp/${basename}-2b0.png" \( +clone -enhance -alpha on -channel alpha -evaluate multiply `echo "$realiso+800/3200"|bc -l` \) -composite "/tmp/${basename}-2b.png"
+# denoise -m median -f 3 -n $(echo "$realiso/800" | concalc 2>/dev/null) /tmp/${basename}-2b0.png /tmp/${basename}-2b.png
 
-convert -set colorspace RGB /tmp/${basename}_dn-0.png /tmp/${basename}-1b.png /tmp/${basename}-2b.png -set colorspace HSL -combine -colorspace RGB -level ${lcorr}% /tmp/${basename}.tif
+convert -set colorspace RGB /tmp/${basename}_dn-0.png /tmp/${basename}-1b.png /tmp/${basename}-2b.png -set colorspace HSB -combine -colorspace RGB -level ${lcorr}% /tmp/${basename}.tif
 
 if [ $cacorr -eq 1 ]; then
   echo "Correcting CA..."
