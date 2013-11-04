@@ -41,7 +41,7 @@ film=$(echo "$file" | grep -o "ds." | grep -o ".$" | tr "[:upper:]" "[:lower:]")
 basename=$(echo "$file" | cut -f1 -d'.')
 ext=$(echo "$1" | cut -d'.' -f2)
 exp=0.7
-sat=0.9
+sat=0.85
 bb=auto
 lc=0.2
 imgfile=$1
@@ -170,16 +170,17 @@ fi
 
 exp=$(echo "$exp+$ecorr" |concalc 2>/dev/null)
 blur=$(echo "1+$realiso/200" | bc -l | cut -f1 -d'.')
-denoise=$(echo "$realiso/10" | bc -l | cut -f1 -d'.')
-denoise2=$(echo "$denoise*3" | bc -l )
-denoise=0
+denoise=$(echo "$realiso/20" | bc -l | cut -f1 -d'.')
+denoise2=$(echo "$denoise*4" | bc -l )
 hotpixel=$(echo "$iso/10" | concalc 2>/dev/null)
 edges=$(echo "1+$realiso/200" | bc -l | cut -f1 -d'.')
 
 #bgamma=$(echo "16000/$iso" | bc -l | cut -f1 -d'.')
 bgamma=0
+dcstr=" -contrast "
 for i in 3200 1600 800 400 200 100 50 25; do
   bgamma=$(echo "$bgamma+1" | bc -l)
+  dcstr=`echo "$dcstr -contrast "`
   if [ $i -le $realiso ]; then
     bgamma=$(echo "6+$bgamma*3" | bc -l)
     break
@@ -188,12 +189,12 @@ done
 
 #cgamma=$(echo "$bgamma/5" | bc -l )	# 5 -> 3
 a=`echo "20000/$realiso"|bc -l`
-b=`echo "$realiso/80"|concalc 2>/dev/null`
-dcontrast=$(echo "$bgamma/6" | bc -l | cut -f1 -d'.')
-dcstr=" -contrast -contrast "
-for i in `seq 1 1 $dcontrast`; do
-  dcstr=`echo "$dcstr -contrast "`
-done
+b=`echo "$realiso/50"|concalc 2>/dev/null`
+#dcontrast=$(echo "$bgamma/6" | bc -l | cut -f1 -d'.')
+#dcstr=" -contrast -contrast "
+#for i in `seq 1 1 $dcontrast`; do
+#  dcstr=`echo "$dcstr -contrast "`
+#done
 
 echo "Model: $model"
 echo "Iso: $iso"
@@ -205,7 +206,7 @@ echo "a: $a"
 echo "b: ${b}%"
 echo "Denoising threshold: $denoise"
 echo "Denoising threshold 2: $denoise2"
-echo "Denoising contrast: $dcontrast"
+#echo "Denoising contrast: $dcontrast"
 echo "Hotpixel sensitivity: $hotpixel"
 echo "Color temperature: $temp, $green"
 echo "Edges threshold: $edges"
@@ -254,7 +255,7 @@ convert -set colorspace RGB "/tmp/${basename}-2.png" "/tmp/${basename}-2mask-neg
 echo "Denoising..."
 #isonoise -r 1 -t 20 /tmp/${basename}-2b0.png /tmp/${basename}-2b1.png
 # denoise -m mean -f 1.1 -n $(echo "$realiso/800" | concalc 2>/dev/null) /tmp/${basename}-2b0.png /tmp/${basename}-2b.png
-convert "/tmp/${basename}-2b0.png" \( +clone -enhance -alpha on -channel alpha -evaluate multiply `echo "$realiso+800/3200"|bc -l` \) -composite "/tmp/${basename}-2b.png"
+convert "/tmp/${basename}-2b0.png" \( +clone -enhance -alpha on -channel alpha -evaluate multiply `echo "($realiso+300)/1400"|bc -l` \) -composite "/tmp/${basename}-2b.png"
 # denoise -m median -f 3 -n $(echo "$realiso/800" | concalc 2>/dev/null) /tmp/${basename}-2b0.png /tmp/${basename}-2b.png
 
 convert -set colorspace RGB /tmp/${basename}_dn-0.png /tmp/${basename}-1b.png /tmp/${basename}-2b.png -set colorspace HSB -combine -colorspace RGB -level ${lcorr}% /tmp/${basename}.tif
