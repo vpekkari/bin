@@ -20,12 +20,14 @@ iext=`echo $ifile | cut -f2 -d'.'`
 
 sharpen=`echo "$factor/10000"|bc -l`
 blur=`echo "4+$factor/200"|bc -l|cut -f1 -d'.'`
+stretch=`echo "$factor/100"|bc -l|cut -f1 -d'.'`
 #amount=`echo "0.50+35/$factor"|bc -l`
 amount=0.50
 
 echo "Sharpen: $sharpen"
 echo "Blur: $blur"
 echo "Amount: $amount"
+echo "Stretch: $stretch"
 
 mkdir -p /tmp/sharpen
 
@@ -53,7 +55,8 @@ if [ "$BLURIMG" == "" ]; then
   BLURIMG="/tmp/sharpen/${ibase}-2b.png"
 fi
 
-convert -set colorspace RGB "$BLURIMG" -normalize -negate -morphology Edge Diamond -normalize -blur 6x2+0 -normalize "/tmp/sharpen/${ibase}-2e0.png"
+#convert -set colorspace RGB "$BLURIMG" -normalize -negate -morphology Edge Diamond -normalize -blur 6x2+0 -normalize "/tmp/sharpen/${ibase}-2e0.png"
+convert -set colorspace RGB "$BLURIMG" -contrast-stretch ${stretch}%x1% -negate -morphology Edge Diamond -normalize -blur 6x2+0 -normalize "/tmp/sharpen/${ibase}-2e0.png"
 #convert -set colorspace RGB "/tmp/sharpen/${ibase}-2e0.png" -linear-stretch 40%x1% "/tmp/sharpen/${ibase}-2e.png"
 convert -set colorspace RGB "/tmp/sharpen/${ibase}-2e0.png" -linear-stretch 0%x2% "/tmp/sharpen/${ibase}-2e.png"
 convert -set colorspace RGB "/tmp/sharpen/${ibase}-2x.png" -unsharp 0x${r}+${a}+0 "/tmp/sharpen/${ibase}-2s0.png"

@@ -41,7 +41,7 @@ film=$(echo "$file" | grep -o "ds." | grep -o ".$" | tr "[:upper:]" "[:lower:]")
 basename=$(echo "$file" | cut -f1 -d'.')
 ext=$(echo "$1" | cut -d'.' -f2)
 exp=0.7
-sat=0.85
+sat=0.90
 bb=auto
 lc=0.2
 imgfile=$1
@@ -188,8 +188,10 @@ for i in 3200 1600 800 400 200 100 50 25; do
 done
 
 #cgamma=$(echo "$bgamma/5" | bc -l )	# 5 -> 3
-a=`echo "20000/$realiso"|bc -l`
-b=`echo "$realiso/50"|concalc 2>/dev/null`
+a=`echo "12800/$realiso"|bc -l`
+a2=`echo "6400/$realiso"|bc -l`
+b=`echo "$realiso/64"|concalc 2>/dev/null`
+b2=`echo "$realiso/32"|concalc 2>/dev/null`
 #dcontrast=$(echo "$bgamma/6" | bc -l | cut -f1 -d'.')
 #dcstr=" -contrast -contrast "
 #for i in `seq 1 1 $dcontrast`; do
@@ -244,6 +246,8 @@ convert -set colorspace RGB "/tmp/${basename}-2blur.png" -gamma $bgamma -negate 
 
 echo "Chroma..."
 convert -set colorspace RGB "/tmp/${basename}-2blur.png" -sigmoidal-contrast $a,${b}% "/tmp/${basename}-2blurgamma2.png"
+convert -set colorspace RGB "/tmp/${basename}-2blur.png" -sigmoidal-contrast $a,${b}% -negate "/tmp/${basename}-2blurgamma2n.png"
+convert -set colorspace RGB "/tmp/${basename}-2blur.png" -sigmoidal-contrast $a2,${b2}% -negate "/tmp/${basename}-2blurgamma22n.png"
 convert -set colorspace RGB "/tmp/${basename}_dn-1.png" "/tmp/${basename}-2blurgamma2.png" -compose multiply -composite "/tmp/${basename}-1b.png"
 
 echo "Compositing luma..."
@@ -255,10 +259,23 @@ convert -set colorspace RGB "/tmp/${basename}-2.png" "/tmp/${basename}-2mask-neg
 echo "Denoising..."
 #isonoise -r 1 -t 20 /tmp/${basename}-2b0.png /tmp/${basename}-2b1.png
 # denoise -m mean -f 1.1 -n $(echo "$realiso/800" | concalc 2>/dev/null) /tmp/${basename}-2b0.png /tmp/${basename}-2b.png
-convert "/tmp/${basename}-2b0.png" \( +clone -enhance -alpha on -channel alpha -evaluate multiply `echo "($realiso+300)/1400"|bc -l` \) -composite "/tmp/${basename}-2b.png"
+if [ $realiso -ge 1600 ]; then
+  enhance="-enhance"
+fi
+convert "/tmp/${basename}-2b0.png" \( +clone -enhance $enhance -alpha on -channel alpha -evaluate multiply `echo "($realiso+300)/1400"|bc -l` \) -composite "/tmp/${basename}-2b.png"
 # denoise -m median -f 3 -n $(echo "$realiso/800" | concalc 2>/dev/null) /tmp/${basename}-2b0.png /tmp/${basename}-2b.png
 
-convert -set colorspace RGB /tmp/${basename}_dn-0.png /tmp/${basename}-1b.png /tmp/${basename}-2b.png -set colorspace HSB -combine -colorspace RGB -level ${lcorr}% /tmp/${basename}.tif
+composite "/tmp/${basename}-2blur.png" "/tmp/${basename}-2b.png" "/tmp/${basename}-2blurgamma2n.png" "/tmp/${basename}-2bb.png"
+
+convert -set colorspace RGB /tmp/${basename}_dn-0.png /tmp/${basename}-1b.png /tmp/${basename}-2bb.png -set colorspace HSB -combine -colorspace RGB -level ${lcorr}% /tmp/${basename}.tif
+
+# Värikohina
+convert -set colorspace RGB "/tmp/${basename}.tif" -colorspace YCbCr -separate "/tmp/${basename}_c.png"
+convert -set colorspace RGB "/tmp/${basename}_c-1.png" -blur 12x7+0 "/tmp/${basename}_c-1b0.png"
+convert -set colorspace RGB "/tmp/${basename}_c-2.png" -blur 12x7+0 "/tmp/${basename}_c-2b0.png"
+composite "/tmp/${basename}_c-1b0.png" "/tmp/${basename}_c-1.png" "/tmp/${basename}-2blurgamma22n.png" "/tmp/${basename}_c-1b.png"
+composite "/tmp/${basename}_c-2b0.png" "/tmp/${basename}_c-2.png" "/tmp/${basename}-2blurgamma22n.png" "/tmp/${basename}_c-2b.png"
+convert -set colorspace RGB /tmp/${basename}_c-0.png /tmp/${basename}_c-1b.png /tmp/${basename}_c-2b.png -set colorspace YCbCr -combine -colorspace RGB /tmp/${basename}.tif
 
 if [ $cacorr -eq 1 ]; then
   echo "Correcting CA..."
