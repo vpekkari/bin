@@ -75,9 +75,11 @@ ufraw-batch --embedded-image --overwrite --output=/tmp/${basename}_emb.jpg "$img
 emin=`identify -format '%[min]' /tmp/${basename}_emb.jpg | cut -f1 -d'.'`
 emean=`identify -format '%[mean]' /tmp/${basename}_emb.jpg | cut -f1 -d'.'`
 emax=`identify -format '%[max]' /tmp/${basename}_emb.jpg | cut -f1 -d'.'`
+autolevel=`echo "$emax/65535*100"|bc -l|cut -f1 -d'.'`
 #max=`identify -format '%[max]' /tmp/${basename}_mean.jpg | cut -f1 -d'.'`#
 emax=$(echo "$emax/2^($ecorr/2)" | concalc 2>/dev/null )
 max=65535
+
 
 mean=`echo "($emean - $emin) / ($emax - $emin) * $max" | bc -l | cut -f1 -d'.'`
 newmean=0
@@ -213,6 +215,7 @@ echo "Hotpixel sensitivity: $hotpixel"
 echo "Color temperature: $temp, $green"
 echo "Edges threshold: $edges"
 echo "Black level correction: $lcorr"
+echo "Autolevel: $autolevel"
 echo "dcstr: $dcstr"
 
 if [ $cacorr -eq 1 ]; then
@@ -259,10 +262,11 @@ convert -set colorspace RGB "/tmp/${basename}-2.png" "/tmp/${basename}-2mask-neg
 echo "Denoising..."
 #isonoise -r 1 -t 20 /tmp/${basename}-2b0.png /tmp/${basename}-2b1.png
 # denoise -m mean -f 1.1 -n $(echo "$realiso/800" | concalc 2>/dev/null) /tmp/${basename}-2b0.png /tmp/${basename}-2b.png
-if [ $realiso -ge 1600 ]; then
+if [ $realiso -gt 1600 ]; then
   enhance="-enhance"
 fi
-convert "/tmp/${basename}-2b0.png" \( +clone -enhance $enhance -alpha on -channel alpha -evaluate multiply `echo "($realiso+300)/1400"|bc -l` \) -composite "/tmp/${basename}-2b.png"
+#convert "/tmp/${basename}-2b0.png" \( +clone -enhance $enhance -alpha on -channel alpha -evaluate multiply `echo "($realiso+300)/1400"|bc -l` \) -composite "/tmp/${basename}-2b.png"
+convert "/tmp/${basename}-2b0.png" \( +clone -enhance $enhance -alpha on -channel alpha -evaluate multiply `echo "$realiso/1600"|bc -l` \) -composite "/tmp/${basename}-2b.png"
 # denoise -m median -f 3 -n $(echo "$realiso/800" | concalc 2>/dev/null) /tmp/${basename}-2b0.png /tmp/${basename}-2b.png
 
 composite "/tmp/${basename}-2blur.png" "/tmp/${basename}-2b.png" "/tmp/${basename}-2blurgamma2n.png" "/tmp/${basename}-2bb.png"
@@ -291,7 +295,7 @@ echo "Converting tif -> jpg ... $sharpen"
 #while [ $newmean -lt $mean ]; do
 #  gamma=`echo "$gamma+0.05" | concalc 2>/dev/null`
 #  echo -e "Gamma: $gamma\nSource mean: $mean\nTarget mean: $newmean\n"
-#  convert -set colorspace RGB -auto-level -level 1%,97% -gamma $gamma -quality 85 "/tmp/${basename}_corr.tif" "/tmp/${basename}_gamma.jpg"
+#  convert -set colorspace RGB -auto-level -level 1%,97% -level 1%,97% -gamma $gamma -quality 85 "/tmp/${basename}_corr.tif" "/tmp/${basename}_gamma.jpg"
 #  newmean=`identify -format '%[mean]' "/tmp/${basename}_gamma.jpg" | cut -f1 -d'.'`
 #done
 #while [ $newmean -gt $mean ]; do
@@ -300,11 +304,11 @@ echo "Converting tif -> jpg ... $sharpen"
 #  convert -set colorspace RGB -auto-level -level 1%,97% -gamma $gamma -quality 85 "/tmp/${basename}_corr.tif" "/tmp/${basename}_gamma.jpg"
 #  newmean=`identify -format '%[mean]' "/tmp/${basename}_gamma.jpg" | cut -f1 -d'.'`
 #done
-gamma=`findgamma "/tmp/${basename}_corr.tif" "$mean"`
+gamma=`findgamma "/tmp/${basename}_corr.tif" "$mean" "$autolevel"`
 
 #convert -auto-level -level 3%,100% -gamma $gamma -unsharp 0x40.0+$lc+0.0 -unsharp 0.5x0.5+1.5+$sharpen -quality 97 "/tmp/${basename}_corr.tif" "/tmp/${basename}.jpg"; rm -f "/tmp/${basename}_corr.tif"   
 #convert -set colorspace RGB -auto-level -level 1%,100% -gamma $gamma -unsharp 0x40.0+$lc+0.0 -unsharp 0x1.4+0.4+0 "/tmp/${basename}_corr.tif" "/tmp/${basename}.tif"
-convert -set colorspace RGB -auto-level -level 1%,100% -gamma $gamma -unsharp 0x50.0+$lc+0.0 "/tmp/${basename}_corr.tif" "/tmp/${basename}.tif"
+convert -set colorspace RGB -level 0%,${autolevel}% -level 1%,100% -gamma $gamma -unsharp 0x50.0+$lc+0.0 "/tmp/${basename}_corr.tif" "/tmp/${basename}.tif"
 #sharpedge -k gaussian -e 0 -w 2.0 -b 2 -t $edges -f 12 "/tmp/${basename}.tif" "/tmp/${basename}_sh.tif"
 echo "Sharpening..."
 BLURIMG=/tmp/${basename}-2blur.png sharpen "/tmp/${basename}.tif" $realiso

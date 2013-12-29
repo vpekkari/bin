@@ -2,9 +2,11 @@
 
 # $1 = tiedosto
 # $2 = tavoiteltava mean-arvo
+# $3 = autolevel-arvo
 
 currmean=0
 tgtmean=$2
+autolevel=$3
 file=$1
 amount=0.08
 gamma=1
@@ -12,7 +14,7 @@ oper="x"
 diff=1
 scale="`echo "1/$amount*2" | bc -l | cut -f1 -d'.'`"
 
-convert -resize ${scale}% -set colorspace RGB -auto-level -level 1%,97% -gamma $gamma -quality 85 "$1" "/tmp/$$_gamma.jpg"
+convert -resize ${scale}% -set colorspace RGB -level 0%,${autolevel}% -level 1%,97% -gamma $gamma -quality 85 "$1" "/tmp/$$_gamma.jpg"
 currmean=`identify -format '%[mean]' "/tmp/$$_gamma.jpg" | cut -f1 -d'.'`
 
 while [ $diff -eq 1 ] || [ $scale -lt 100 ]; do
@@ -33,7 +35,7 @@ while [ $diff -eq 1 ] || [ $scale -lt 100 ]; do
   fi
   gamma=`echo "${gamma}${oper}${amount}"|bc -l`
   echo "Scale: ${scale}%, Mean: $currmean, Gamma: $gamma" 1>&2
-  convert -resize ${scale}% -set colorspace RGB -auto-level -level 1%,97% -gamma $gamma -quality 85 "$1" "/tmp/$$_gamma.jpg"
+  convert -resize ${scale}% -set colorspace RGB -level 0%,${autolevel}% -level 1%,97% -gamma $gamma -quality 85 "$1" "/tmp/$$_gamma.jpg"
   currmean=`identify -format '%[mean]' "/tmp/$$_gamma.jpg" | cut -f1 -d'.'`
   diff=`echo "($amount-0.005)>0" | bc -l`
 done
